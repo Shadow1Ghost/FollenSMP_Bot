@@ -6,7 +6,7 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages, 
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildPresences // Добавлено для отслеживания статусов
+        GatewayIntentBits.GuildPresences
     ] 
 });
 
@@ -56,7 +56,6 @@ function saveOrders(orders) {
 }
 
 let orders = loadOrders();
-// =============================================
 
 // Список привилегий
 const ranks = {
@@ -65,7 +64,7 @@ const ranks = {
         priceRUB: 10,
         priceKZT: 50,
         emoji: '💎',
-        voucher: 'ultra_rank'  // Название ваучера для команды iv give
+        voucher: 'ultra_rank'
     },
     'supreme': {
         name: 'SUPREME',
@@ -247,8 +246,8 @@ client.on('interactionCreate', async (interaction) => {
     // ===== ПОДТВЕРЖДЕНИЕ ОПЛАТЫ =====
     if (customId.startsWith('confirm_')) {
         const orderId = customId.replace('confirm_', '');
-        
         const order = orders.get(orderId);
+        
         if (!order) {
             return interaction.reply({ 
                 content: '❌ Заказ не найден или уже обработан', 
@@ -259,7 +258,6 @@ client.on('interactionCreate', async (interaction) => {
         try {
             const giveChannel = await client.channels.fetch(DISCORDSRV_CHANNEL_ID);
             
-            // 👇 НОВАЯ КОМАНДА ДЛЯ ВЫДАЧИ ВАУЧЕРА
             const rankKey = Object.keys(ranks).find(key => ranks[key].name === order.rank);
             const voucherName = rankKey ? ranks[rankKey].voucher : order.rank.toLowerCase();
             const command = `iv give ${order.username} ${voucherName} 1`;
@@ -278,7 +276,6 @@ client.on('interactionCreate', async (interaction) => {
                 components: []
             });
             
-            // Уведомление покупателю
             const buyer = await client.users.fetch(order.userId);
             if (buyer) {
                 await buyer.send(
@@ -306,8 +303,8 @@ client.on('interactionCreate', async (interaction) => {
     // ===== ОТМЕНА ЗАЯВКИ =====
     if (customId.startsWith('cancel_')) {
         const orderId = customId.replace('cancel_', '');
-        
         const order = orders.get(orderId);
+        
         if (!order) {
             return interaction.reply({ 
                 content: '❌ Заказ не найден', 
@@ -344,7 +341,6 @@ client.on('interactionCreate', async (interaction) => {
         const amount = country === 'kz' ? rank.priceKZT : rank.priceRUB;
         const currency = country === 'kz' ? '₸' : '₽';
         
-        // Текст с картами для покупателя
         let paymentDetails;
         if (country === 'kz') {
             paymentDetails = 
@@ -400,7 +396,6 @@ client.on('interactionCreate', async (interaction) => {
             ]
         };
         
-        // Ответ пользователю с картами
         await interaction.update({
             content: `✅ Заявка создана!\n\n` +
                     `💰 **Сумма:** ${amount} ${currency}\n` +
@@ -427,37 +422,13 @@ client.on('interactionCreate', async (interaction) => {
         });
     }
 });
-// ПОДТВЕРЖДЕНИЕ ОПЛАТЫ
-if (customId.startsWith('confirm_')) {
-    const orderId = customId.replace('confirm_', '');
-    const order = orders.get(orderId);
-    
-    if (!order) {
-        return interaction.reply({ 
-            content: '❌ Заказ не найден или уже обработан', 
-            ephemeral: true 
-        });
-    }
-    
-    try {
-        // ✅ ЭТОТ КОД ДОЛЖЕН БЫТЬ ВНУТРИ async-фУНКЦИИ
-        const giveChannel = await client.channels.fetch(DISCORDSRV_CHANNEL_ID);
-        
-        // Определяем название ваучера
-        const rankKey = Object.keys(ranks).find(key => ranks[key].name === order.rank);
-        const voucherName = rankKey ? ranks[rankKey].voucher : order.rank.toLowerCase();
-        
-        // 👇 ВАЖНО: команда отправляется БЕЗ префиксов
-        const command = `iv give ${order.username} ${voucherName} 1`;
-        await giveChannel.send(command);
-        
-        console.log(`✅ Команда отправлена в DiscordSRV: ${command}`);
-        
-        // ... остальной код
-        
-    } catch (error) {
-        console.error('❌ Ошибка при отправке команды:', error);
-    }
-}
+
+client.on('error', (error) => {
+    console.error('❌ Ошибка клиента:', error);
+});
+
+process.on('unhandledRejection', (error) => {
+    console.error('❌ Необработанная ошибка:', error);
+});
 
 client.login(TOKEN);
