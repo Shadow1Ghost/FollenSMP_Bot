@@ -427,6 +427,33 @@ client.on('interactionCreate', async (interaction) => {
         });
     }
 });
+if (customId.startsWith('confirm_')) {
+    const orderId = customId.replace('confirm_', '');
+    const order = orders.get(orderId);
+    
+    if (!order) {
+        return interaction.reply({ content: '❌ Заказ не найден', ephemeral: true });
+    }
+    
+    try {
+        const giveChannel = await client.channels.fetch(DISCORDSRV_CHANNEL_ID);
+        
+        // Определяем название ваучера
+        const rankKey = Object.keys(ranks).find(key => ranks[key].name === order.rank);
+        const voucherName = rankKey ? ranks[rankKey].voucher : order.rank.toLowerCase();
+        
+        // 👇 ВАЖНО: команда отправляется БЕЗ префиксов
+        const command = `iv give ${order.username} ${voucherName} 1`;
+        await giveChannel.send(command);
+        
+        console.log(`✅ Команда отправлена в DiscordSRV: ${command}`);
+        
+        // ... остальной код (обновление сообщения, уведомление покупателя)
+        
+    } catch (error) {
+        console.error('❌ Ошибка при отправке команды:', error);
+    }
+}
 
 client.on('error', (error) => {
     console.error('❌ Ошибка клиента:', error);
