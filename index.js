@@ -1,17 +1,4 @@
 const { Client, GatewayIntentBits } = require('discord.js');
-const http = require('http'); // <-- Добавь этот импорт
-
-// --- Простой HTTP сервер для Render ---
-const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end(‘FollenSMP Bot is running!’);
-});
-const PORT = process.env.PORT || 10000;
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`🌐 HTTP пинг-сервер запущен на порту ${PORT}`);
-});
-
-
 const client = new Client({ 
     intents: [
         GatewayIntentBits.Guilds,
@@ -23,7 +10,7 @@ const client = new Client({
 // ========== НАСТРОЙКИ (переменные окружения) ==========
 const TOKEN = process.env.TOKEN;
 const ADMIN_KZ_ID = process.env.ADMIN_KZ_ID;      // Твой Discord ID
-const ADMIN_RU_ID = process.env.ADMIN_RU_ID;      // ID друга в России
+const ADMIN_RU_ID = process.env.ADMIN_RU_ID;      // ID друга в России (оставим для совместимости)
 const CHANNEL_ID = process.env.CHANNEL_ID;        // Канал для команд !buy
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID; // Канал для уведомлений
 const DISCORDSRV_CHANNEL_ID = process.env.DISCORDSRV_CHANNEL_ID; // Канал DiscordSRV
@@ -72,7 +59,7 @@ const orders = new Map();
 client.once('ready', () => {
     console.log(`✅ Бот ${client.user.tag} запущен!`);
     console.log(`👑 Админ KZ: ${ADMIN_KZ_ID}`);
-    console.log(`👑 Админ RU: ${ADMIN_RU_ID}`);
+    console.log(`👑 Админ RU: ${ADMIN_RU_ID} (Telegram: @Motok_lu)`);
 });
 
 client.on('messageCreate', async (message) => {
@@ -117,7 +104,7 @@ client.on('messageCreate', async (message) => {
         const adminText = 
             '👑 **Администрация FollenSMP**\n\n' +
             `🇰🇿 **Казахстан (тенге):** <@${ADMIN_KZ_ID}>\n` +
-            `🇷🇺 **Россия (рубли):** <@${ADMIN_RU_ID}>\n\n` +
+            `🇷🇺 **Россия (рубли):** Telegram @Motok_lu\n\n` +
             '📩 По вопросам оплаты пишите в личные сообщения админам.';
         
         return message.reply(adminText);
@@ -128,7 +115,7 @@ client.on('messageCreate', async (message) => {
         const supportText = 
             '🆘 **Техническая поддержка**\n\n' +
             `🇰🇿 Казахстан: <@${ADMIN_KZ_ID}>\n` +
-            `🇷🇺 Россия: <@${ADMIN_RU_ID}>\n\n` +
+            `🇷🇺 Россия: Telegram @Motok_lu\n\n` +
             '📝 **Что писать:**\n' +
             '• Ваш ник в игре\n' +
             '• Проблема (не выдали привилегию, не прошла оплата и т.д.)\n' +
@@ -213,11 +200,18 @@ client.on('interactionCreate', async (interaction) => {
     // Выбор страны
     if (action === 'country') {
         const rank = ranks[rankKey];
-        const targetAdmin = country === 'kz' ? ADMIN_KZ_ID : ADMIN_RU_ID;
         const countryName = country === 'kz' ? 'Казахстан' : 'Россия';
         const amount = country === 'kz' ? rank.priceKZT : rank.priceRUB;
         const currency = country === 'kz' ? '₸' : '₽';
-        const adminMention = `<@${targetAdmin}>`;
+        
+        // 👇 ИЗМЕНЕНИЕ: определяем, как показывать админа
+        let adminDisplay;
+        if (country === 'kz') {
+            adminDisplay = `<@${ADMIN_KZ_ID}>`;
+        } else {
+            adminDisplay = '**@Motok_lu** (Telegram)';
+        }
+        // 👆
         
         // Получаем ник из сообщения
         const match = interaction.message.content.match(/Ник: ([^\n]+)/);
@@ -252,19 +246,28 @@ client.on('interactionCreate', async (interaction) => {
             ]
         };
         
-        // Отправляем уведомление админу
+        // Отправляем уведомление пользователю
         await interaction.update({
-            content: `✅ Заявка создана! Администратор ${adminMention} скоро проверит.\n` +
+            content: `✅ Заявка создана! Администратор ${adminDisplay} скоро проверит.\n` +
                     `🌍 Страна: ${countryName}\n` +
                     `💰 Сумма: ${amount} ${currency}\n` +
                     `🏷 Привилегия: ${rank.name}`,
             components: []
         });
         
+        // 👇 ИЗМЕНЕНИЕ: для лог-канала тоже показываем по-разному
+        let logAdminDisplay;
+        if (country === 'kz') {
+            logAdminDisplay = `<@${ADMIN_KZ_ID}>`;
+        } else {
+            logAdminDisplay = '@Motok_lu (Telegram)';
+        }
+        // 👆
+        
         // Отправляем уведомление в лог-канал
         const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
         await logChannel.send({
-            content: `${adminMention} 🔔 **НОВАЯ ЗАЯВКА НА ОПЛАТУ!**\n` +
+            content: `${logAdminDisplay} 🔔 **НОВАЯ ЗАЯВКА НА ОПЛАТУ!**\n` +
                     `━━━━━━━━━━━━━━━━━━━━━━━\n` +
                     `👤 **Покупатель:** <@${interaction.user.id}>\n` +
                     `🎮 **Ник в игре:** ${username}\n` +
