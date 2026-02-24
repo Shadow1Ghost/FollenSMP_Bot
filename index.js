@@ -427,15 +427,20 @@ client.on('interactionCreate', async (interaction) => {
         });
     }
 });
+// ПОДТВЕРЖДЕНИЕ ОПЛАТЫ
 if (customId.startsWith('confirm_')) {
     const orderId = customId.replace('confirm_', '');
     const order = orders.get(orderId);
     
     if (!order) {
-        return interaction.reply({ content: '❌ Заказ не найден', ephemeral: true });
+        return interaction.reply({ 
+            content: '❌ Заказ не найден или уже обработан', 
+            ephemeral: true 
+        });
     }
     
     try {
+        // ✅ ЭТОТ КОД ДОЛЖЕН БЫТЬ ВНУТРИ async-фУНКЦИИ
         const giveChannel = await client.channels.fetch(DISCORDSRV_CHANNEL_ID);
         
         // Определяем название ваучера
@@ -448,19 +453,11 @@ if (customId.startsWith('confirm_')) {
         
         console.log(`✅ Команда отправлена в DiscordSRV: ${command}`);
         
-        // ... остальной код (обновление сообщения, уведомление покупателя)
+        // ... остальной код
         
     } catch (error) {
         console.error('❌ Ошибка при отправке команды:', error);
     }
 }
-
-client.on('error', (error) => {
-    console.error('❌ Ошибка клиента:', error);
-});
-
-process.on('unhandledRejection', (error) => {
-    console.error('❌ Необработанная ошибка:', error);
-});
 
 client.login(TOKEN);
