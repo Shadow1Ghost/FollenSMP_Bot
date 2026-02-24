@@ -5,7 +5,8 @@ const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages, 
-        GatewayIntentBits.MessageContent
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildPresences // Добавлено для отслеживания статусов
     ] 
 });
 
@@ -63,27 +64,46 @@ const ranks = {
         name: 'Ultra',
         priceRUB: 10,
         priceKZT: 50,
-        emoji: '💎'
+        emoji: '💎',
+        voucher: 'ultra_rank'  // Название ваучера для команды iv give
     },
     'supreme': {
         name: 'SUPREME',
         priceRUB: 30,
         priceKZT: 80,
-        emoji: '⚡'
+        emoji: '⚡',
+        voucher: 'supreme_rank'
     },
     'legend': {
         name: 'Legend',
         priceRUB: 50,
         priceKZT: 130,
-        emoji: '👑'
+        emoji: '👑',
+        voucher: 'legend_rank'
     },
     'dragon': {
         name: 'Драгон',
         priceRUB: 150,
         priceKZT: 300,
-        emoji: '🐉'
+        emoji: '🐉',
+        voucher: 'dragon_rank'
     }
 };
+
+// Список админов для проверки онлайна
+const adminIds = [ADMIN_KZ_ID, ADMIN_RU_ID];
+
+// Функция для получения количества админов онлайн
+function getOnlineAdmins() {
+    let onlineCount = 0;
+    for (const adminId of adminIds) {
+        const admin = client.users.cache.get(adminId);
+        if (admin && admin.presence?.status !== 'offline' && admin.presence?.status !== undefined) {
+            onlineCount++;
+        }
+    }
+    return onlineCount;
+}
 
 client.once('ready', () => {
     console.log(`✅ Бот ${client.user.tag} запущен!`);
@@ -128,10 +148,14 @@ client.on('messageCreate', async (message) => {
     }
     
     if (command === '!admins') {
+        const onlineAdmins = getOnlineAdmins();
+        const totalAdmins = adminIds.length;
+        
         const adminText = 
             '👑 **Администрация FollenSMP**\n\n' +
             `🇰🇿 **Казахстан (тенге):** <@${ADMIN_KZ_ID}>\n` +
             `🇷🇺 **Россия (рубли):** Telegram @Motok_lu\n\n` +
+            `📊 **Сейчас в сети:** ${onlineAdmins}/${totalAdmins} админов\n\n` +
             '📩 По вопросам оплаты пишите в личные сообщения админам.';
         
         return message.reply(adminText);
@@ -234,7 +258,14 @@ client.on('interactionCreate', async (interaction) => {
         
         try {
             const giveChannel = await client.channels.fetch(DISCORDSRV_CHANNEL_ID);
-            await giveChannel.send(`!sudo ${order.username} ${order.rank.toLowerCase()}`);
+            
+            // 👇 НОВАЯ КОМАНДА ДЛЯ ВЫДАЧИ ВАУЧЕРА
+            const rankKey = Object.keys(ranks).find(key => ranks[key].name === order.rank);
+            const voucherName = rankKey ? ranks[rankKey].voucher : order.rank.toLowerCase();
+            const command = `iv give ${order.username} ${voucherName} 1`;
+            
+            await giveChannel.send(command);
+            console.log(`✅ Команда отправлена: ${command}`);
             
             order.status = 'approved';
             orders.set(orderId, order);
@@ -243,11 +274,11 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.update({
                 content: `✅ **ОПЛАТА ПОДТВЕРЖДЕНА!**\n` +
                         `━━━━━━━━━━━━━━━━━━━━━━━\n` +
-                        `🎮 Игроку ${order.username} выдана привилегия ${order.rank}`,
+                        `🎮 Игроку ${order.username} выдан ваучер ${order.rank}`,
                 components: []
             });
             
-            // 👇 УВЕДОМЛЕНИЕ ПОКУПАТЕЛЮ
+            // Уведомление покупателю
             const buyer = await client.users.fetch(order.userId);
             if (buyer) {
                 await buyer.send(
@@ -257,14 +288,13 @@ client.on('interactionCreate', async (interaction) => {
                     `🏷 **Привилегия:** ${order.rank}\n` +
                     `💰 **Сумма:** ${order.amount}\n` +
                     `━━━━━━━━━━━━━━━━━━━━━━━\n` +
-                    `✨ Товар был успешно выдан в игре!\n` +
+                    `✨ Вам выдан ваучер в игре! Нажмите ПКМ по нему, чтобы активировать статус.\n` +
                     `Если возникнут вопросы — пишите администраторам.`
                 );
             }
-            // 👆
             
         } catch (error) {
-            console.error('Ошибка при выдаче:', error);
+            console.error('❌ Ошибка при выдаче:', error);
             await interaction.reply({
                 content: '❌ Ошибка при выдаче привилегии. Проверьте логи.',
                 ephemeral: true
@@ -303,7 +333,7 @@ client.on('interactionCreate', async (interaction) => {
         return;
     }
     
-    // ===== ВЫБОР СТРАНЫ (КАЗАХСТАН/РОССИЯ) =====
+    // ===== ВЫБОР СТРАНЫ =====
     if (parts[0] === 'country') {
         const country = parts[1];
         const orderId = parts[2];
@@ -314,7 +344,7 @@ client.on('interactionCreate', async (interaction) => {
         const amount = country === 'kz' ? rank.priceKZT : rank.priceRUB;
         const currency = country === 'kz' ? '₸' : '₽';
         
-        // 👇 ТЕКСТ С КАРТАМИ ДЛЯ ПОКУПАТЕЛЯ
+        // Текст с картами для покупателя
         let paymentDetails;
         if (country === 'kz') {
             paymentDetails = 
@@ -326,7 +356,6 @@ client.on('interactionCreate', async (interaction) => {
                 '💳 **Карта РФ:** `...` (свяжитесь с @Motok_lu)\n' +
                 'Либо уточните реквизиты у администратора.';
         }
-        // 👆
         
         let adminDisplay;
         let logAdminDisplay;
@@ -371,17 +400,16 @@ client.on('interactionCreate', async (interaction) => {
             ]
         };
         
-        // 👇 ОТВЕТ ПОЛЬЗОВАТЕЛЮ С КАРТАМИ
+        // Ответ пользователю с картами
         await interaction.update({
             content: `✅ Заявка создана!\n\n` +
                     `💰 **Сумма:** ${amount} ${currency}\n` +
                     `🏷 **Привилегия:** ${rank.name}\n` +
                     `🌍 **Страна:** ${countryName}\n\n` +
                     `${paymentDetails}\n\n` +
-                    `📩 После перевода нажмите кнопку "Подтвердить оплату" у администратора.`,
+                    `📩 После перевода администратор подтвердит оплату и выдаст ваучер.`,
             components: []
         });
-        // 👆
         
         const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
         await logChannel.send({
