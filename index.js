@@ -1,4 +1,6 @@
 const { Client, GatewayIntentBits } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
 const client = new Client({ 
     intents: [
         GatewayIntentBits.Guilds,
@@ -24,6 +26,36 @@ for (const env of requiredEnv) {
         process.exit(1);
     }
 }
+
+// ========== РАБОТА С ФАЙЛОМ ЗАКАЗОВ ==========
+const ORDERS_FILE = path.join(__dirname, 'orders.json');
+
+// Загружаем заказы из файла при запуске
+function loadOrders() {
+    try {
+        if (fs.existsSync(ORDERS_FILE)) {
+            const data = fs.readFileSync(ORDERS_FILE, 'utf8');
+            return new Map(JSON.parse(data));
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки заказов:', error);
+    }
+    return new Map();
+}
+
+// Сохраняем заказы в файл
+function saveOrders(orders) {
+    try {
+        const data = JSON.stringify([...orders], null, 2);
+        fs.writeFileSync(ORDERS_FILE, data);
+    } catch (error) {
+        console.error('Ошибка сохранения заказов:', error);
+    }
+}
+
+// Хранилище заказов
+let orders = loadOrders();
+// =============================================
 
 // Список привилегий
 const ranks = {
@@ -53,13 +85,11 @@ const ranks = {
     }
 };
 
-// Хранилище заявок
-const orders = new Map();
-
 client.once('ready', () => {
     console.log(`✅ Бот ${client.user.tag} запущен!`);
     console.log(`👑 Админ KZ: ${ADMIN_KZ_ID}`);
     console.log(`👑 Админ RU: ${ADMIN_RU_ID} (Telegram: @Motok_lu)`);
+    console.log(`📦 Загружено заказов: ${orders.size}`);
 });
 
 client.on('messageCreate', async (message) => {
@@ -204,14 +234,17 @@ client.on('interactionCreate', async (interaction) => {
         const amount = country === 'kz' ? rank.priceKZT : rank.priceRUB;
         const currency = country === 'kz' ? '₸' : '₽';
         
-        // 👇 ИЗМЕНЕНИЕ: определяем, как показывать админа
+        // 👇 Определяем, как показывать админа
         let adminDisplay;
+        let logAdminDisplay;
+        
         if (country === 'kz') {
             adminDisplay = `<@${ADMIN_KZ_ID}>`;
+            logAdminDisplay = `<@${ADMIN_KZ_ID}>`;
         } else {
-            adminDisplay = '**@Motok_lu** (Telegram)';
+            adminDisplay = '**@Motok_lu** (Telegram)';  // Для России показываем Telegram
+            logAdminDisplay = '@Motok_lu (Telegram)';
         }
-        // 👆
         
         // Получаем ник из сообщения
         const match = interaction.message.content.match(/Ник: ([^\n]+)/);
@@ -226,6 +259,9 @@ client.on('interactionCreate', async (interaction) => {
             amount: `${amount} ${currency}`,
             status: 'waiting'
         });
+        
+        // Сохраняем в файл
+        saveOrders(orders);
         
         // Кнопки подтверждения для админа
         const confirmRow = {
@@ -248,21 +284,12 @@ client.on('interactionCreate', async (interaction) => {
         
         // Отправляем уведомление пользователю
         await interaction.update({
-            content: `✅ Заявка создана! Администратор ${adminDisplay} скоро проверит.\n` +
+            content: `✅ Заявка создана! ${adminDisplay} скоро проверит.\n` +
                     `🌍 Страна: ${countryName}\n` +
                     `💰 Сумма: ${amount} ${currency}\n` +
                     `🏷 Привилегия: ${rank.name}`,
             components: []
         });
-        
-        // 👇 ИЗМЕНЕНИЕ: для лог-канала тоже показываем по-разному
-        let logAdminDisplay;
-        if (country === 'kz') {
-            logAdminDisplay = `<@${ADMIN_KZ_ID}>`;
-        } else {
-            logAdminDisplay = '@Motok_lu (Telegram)';
-        }
-        // 👆
         
         // Отправляем уведомление в лог-канал
         const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
@@ -297,6 +324,8 @@ client.on('interactionCreate', async (interaction) => {
             await giveChannel.send(`!sudo ${order.username} ${order.rank.toLowerCase()}`);
             
             order.status = 'approved';
+            orders.set(orderId, order);
+            saveOrders(orders); // Сохраняем изменения
             
             await interaction.update({
                 content: `✅ **ОПЛАТА ПОДТВЕРЖДЕНА!**\n` +
@@ -339,6 +368,7 @@ client.on('interactionCreate', async (interaction) => {
         }
         
         orders.delete(orderId);
+        saveOrders(orders); // Сохраняем изменения
         
         await interaction.update({
             content: '❌ **Заявка отменена**',
