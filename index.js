@@ -30,13 +30,11 @@ for (const env of requiredEnv) {
 // ========== РАБОТА С ФАЙЛОМ ЗАКАЗОВ ==========
 const ORDERS_FILE = path.join(__dirname, 'orders.json');
 
-// Загружаем заказы из файла при запуске
 function loadOrders() {
     try {
         if (fs.existsSync(ORDERS_FILE)) {
             const data = fs.readFileSync(ORDERS_FILE, 'utf8');
             const parsed = JSON.parse(data);
-            // Проверяем, что parsed - это массив, и конвертируем в Map
             if (Array.isArray(parsed)) {
                 return new Map(parsed);
             }
@@ -47,7 +45,6 @@ function loadOrders() {
     return new Map();
 }
 
-// Сохраняем заказы в файл
 function saveOrders(orders) {
     try {
         const data = JSON.stringify([...orders], null, 2);
@@ -57,7 +54,6 @@ function saveOrders(orders) {
     }
 }
 
-// Хранилище заказов
 let orders = loadOrders();
 // =============================================
 
@@ -103,7 +99,6 @@ client.on('messageCreate', async (message) => {
     const args = message.content.split(' ');
     const command = args[0].toLowerCase();
     
-    // Команда !help
     if (command === '!help') {
         const helpText = 
             '📋 **Доступные команды:**\n\n' +
@@ -117,7 +112,6 @@ client.on('messageCreate', async (message) => {
         return message.reply(helpText);
     }
     
-    // Команда !price
     if (command === '!price') {
         let priceText = '💰 **Прайс-лист привилегий:**\n\n';
         
@@ -133,7 +127,6 @@ client.on('messageCreate', async (message) => {
         return message.reply(priceText);
     }
     
-    // Команда !admins
     if (command === '!admins') {
         const adminText = 
             '👑 **Администрация FollenSMP**\n\n' +
@@ -144,7 +137,6 @@ client.on('messageCreate', async (message) => {
         return message.reply(adminText);
     }
     
-    // Команда !support
     if (command === '!support') {
         const supportText = 
             '🆘 **Техническая поддержка**\n\n' +
@@ -158,7 +150,6 @@ client.on('messageCreate', async (message) => {
         return message.reply(supportText);
     }
     
-    // Команда !status
     if (command === '!status') {
         const orderId = args[1];
         if (!orderId) {
@@ -182,7 +173,6 @@ client.on('messageCreate', async (message) => {
         return message.reply(statusText);
     }
     
-    // Команда !buy [ник] [привилегия]
     if (command === '!buy') {
         const username = args[1];
         const rankKey = args[2]?.toLowerCase();
@@ -196,10 +186,8 @@ client.on('messageCreate', async (message) => {
             return message.reply('❌ Неверная привилегия! Доступны: ultra, supreme, legend, dragon');
         }
         
-        // Создаём заявку
         const orderId = Date.now().toString();
         
-        // Кнопки выбора страны
         const row = {
             type: 1,
             components: [
@@ -232,7 +220,7 @@ client.on('interactionCreate', async (interaction) => {
     const customId = interaction.customId;
     const parts = customId.split('_');
     
-    // Подтверждение оплаты (кнопка с форматом confirm_123456789)
+    // ===== ПОДТВЕРЖДЕНИЕ ОПЛАТЫ =====
     if (customId.startsWith('confirm_')) {
         const orderId = customId.replace('confirm_', '');
         
@@ -244,7 +232,6 @@ client.on('interactionCreate', async (interaction) => {
             });
         }
         
-        // Отправляем команду в канал DiscordSRV
         try {
             const giveChannel = await client.channels.fetch(DISCORDSRV_CHANNEL_ID);
             await giveChannel.send(`!sudo ${order.username} ${order.rank.toLowerCase()}`);
@@ -260,19 +247,21 @@ client.on('interactionCreate', async (interaction) => {
                 components: []
             });
             
-            // Уведомляем покупателя
+            // 👇 УВЕДОМЛЕНИЕ ПОКУПАТЕЛЮ
             const buyer = await client.users.fetch(order.userId);
             if (buyer) {
                 await buyer.send(
-                    `✅ **Ваша оплата подтверждена!**\n` +
+                    `✅ **Спасибо за покупку на FollenSMP!**\n` +
                     `━━━━━━━━━━━━━━━━━━━━━━━\n` +
                     `🎮 **Ник:** ${order.username}\n` +
                     `🏷 **Привилегия:** ${order.rank}\n` +
                     `💰 **Сумма:** ${order.amount}\n` +
                     `━━━━━━━━━━━━━━━━━━━━━━━\n` +
-                    `Спасибо за покупку на FollenSMP!`
+                    `✨ Товар был успешно выдан в игре!\n` +
+                    `Если возникнут вопросы — пишите администраторам.`
                 );
             }
+            // 👆
             
         } catch (error) {
             console.error('Ошибка при выдаче:', error);
@@ -284,7 +273,7 @@ client.on('interactionCreate', async (interaction) => {
         return;
     }
     
-    // Отмена заявки
+    // ===== ОТМЕНА ЗАЯВКИ =====
     if (customId.startsWith('cancel_')) {
         const orderId = customId.replace('cancel_', '');
         
@@ -304,7 +293,6 @@ client.on('interactionCreate', async (interaction) => {
             components: []
         });
         
-        // Уведомляем покупателя
         const buyer = await client.users.fetch(order.userId);
         if (buyer) {
             await buyer.send(
@@ -315,7 +303,7 @@ client.on('interactionCreate', async (interaction) => {
         return;
     }
     
-    // Выбор страны (остаётся как есть)
+    // ===== ВЫБОР СТРАНЫ (КАЗАХСТАН/РОССИЯ) =====
     if (parts[0] === 'country') {
         const country = parts[1];
         const orderId = parts[2];
@@ -326,7 +314,20 @@ client.on('interactionCreate', async (interaction) => {
         const amount = country === 'kz' ? rank.priceKZT : rank.priceRUB;
         const currency = country === 'kz' ? '₸' : '₽';
         
-        // Определяем, как показывать админа
+        // 👇 ТЕКСТ С КАРТАМИ ДЛЯ ПОКУПАТЕЛЯ
+        let paymentDetails;
+        if (country === 'kz') {
+            paymentDetails = 
+                '💳 **Kaspi:** `7 707 582 1743`\n' +
+                '💳 **Halyk:** `4003 0351 1953 1792`\n' +
+                '👤 Получатель: Ерназар Дінмұхамед';
+        } else {
+            paymentDetails = 
+                '💳 **Карта РФ:** `...` (свяжитесь с @Motok_lu)\n' +
+                'Либо уточните реквизиты у администратора.';
+        }
+        // 👆
+        
         let adminDisplay;
         let logAdminDisplay;
         
@@ -338,11 +339,9 @@ client.on('interactionCreate', async (interaction) => {
             logAdminDisplay = '@Motok_lu (Telegram)';
         }
         
-        // Получаем ник из сообщения
         const match = interaction.message.content.match(/Ник: ([^\n]+)/);
         const username = match ? match[1] : 'неизвестно';
         
-        // Сохраняем заявку
         orders.set(orderId, {
             userId: interaction.user.id,
             username: username,
@@ -352,10 +351,8 @@ client.on('interactionCreate', async (interaction) => {
             status: 'waiting'
         });
         
-        // Сохраняем в файл
         saveOrders(orders);
         
-        // Кнопки подтверждения для админа
         const confirmRow = {
             type: 1,
             components: [
@@ -374,16 +371,18 @@ client.on('interactionCreate', async (interaction) => {
             ]
         };
         
-        // Отправляем уведомление пользователю
+        // 👇 ОТВЕТ ПОЛЬЗОВАТЕЛЮ С КАРТАМИ
         await interaction.update({
-            content: `✅ Заявка создана! ${adminDisplay} скоро проверит.\n` +
-                    `🌍 Страна: ${countryName}\n` +
-                    `💰 Сумма: ${amount} ${currency}\n` +
-                    `🏷 Привилегия: ${rank.name}`,
+            content: `✅ Заявка создана!\n\n` +
+                    `💰 **Сумма:** ${amount} ${currency}\n` +
+                    `🏷 **Привилегия:** ${rank.name}\n` +
+                    `🌍 **Страна:** ${countryName}\n\n` +
+                    `${paymentDetails}\n\n` +
+                    `📩 После перевода нажмите кнопку "Подтвердить оплату" у администратора.`,
             components: []
         });
+        // 👆
         
-        // Отправляем уведомление в лог-канал
         const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
         await logChannel.send({
             content: `${logAdminDisplay} 🔔 **НОВАЯ ЗАЯВКА НА ОПЛАТУ!**\n` +
@@ -401,7 +400,6 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// Обработка ошибок
 client.on('error', (error) => {
     console.error('❌ Ошибка клиента:', error);
 });
