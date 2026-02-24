@@ -25,7 +25,35 @@ for (const env of requiredEnv) {
     }
 }
 
-// Хранилище заявок (в реальном проекте лучше использовать БД)
+// Список привилегий
+const ranks = {
+    'ultra': {
+        name: 'Ultra',
+        priceRUB: 10,
+        priceKZT: 50,
+        emoji: '💎'
+    },
+    'supreme': {
+        name: 'SUPREME',
+        priceRUB: 30,
+        priceKZT: 80,
+        emoji: '⚡'
+    },
+    'legend': {
+        name: 'Legend',
+        priceRUB: 50,
+        priceKZT: 130,
+        emoji: '👑'
+    },
+    'dragon': {
+        name: 'Драгон',
+        priceRUB: 150,
+        priceKZT: 300,
+        emoji: '🐉'
+    }
+};
+
+// Хранилище заявок
 const orders = new Map();
 
 client.once('ready', () => {
@@ -41,11 +69,97 @@ client.on('messageCreate', async (message) => {
     const args = message.content.split(' ');
     const command = args[0].toLowerCase();
     
-    // Команда !buy [ник]
+    // Команда !help
+    if (command === '!help') {
+        const helpText = 
+            '📋 **Доступные команды:**\n\n' +
+            '`!price` - показать цены на привилегии\n' +
+            '`!buy [ник] [привилегия]` - купить привилегию\n' +
+            '   Пример: `!buy PetHT1 ultra`\n' +
+            '`!admins` - контакты администраторов\n' +
+            '`!support` - связаться с поддержкой\n' +
+            '`!status [номер заказа]` - проверить статус';
+        
+        return message.reply(helpText);
+    }
+    
+    // Команда !price
+    if (command === '!price') {
+        let priceText = '💰 **Прайс-лист привилегий:**\n\n';
+        
+        for (const [key, rank] of Object.entries(ranks)) {
+            priceText += `${rank.emoji} **${rank.name}**\n`;
+            priceText += `   🇷🇺 ${rank.priceRUB} руб.\n`;
+            priceText += `   🇰🇿 ${rank.priceKZT} тенге\n\n`;
+        }
+        
+        priceText += '📝 Для покупки: `!buy [ник] [название]`\n';
+        priceText += 'Пример: `!buy PetHT1 ultra`';
+        
+        return message.reply(priceText);
+    }
+    
+    // Команда !admins
+    if (command === '!admins') {
+        const adminText = 
+            '👑 **Администрация FollenSMP**\n\n' +
+            `🇰🇿 **Казахстан (тенге):** <@${ADMIN_KZ_ID}>\n` +
+            `🇷🇺 **Россия (рубли):** <@${ADMIN_RU_ID}>\n\n` +
+            '📩 По вопросам оплаты пишите в личные сообщения админам.';
+        
+        return message.reply(adminText);
+    }
+    
+    // Команда !support
+    if (command === '!support') {
+        const supportText = 
+            '🆘 **Техническая поддержка**\n\n' +
+            `🇰🇿 Казахстан: <@${ADMIN_KZ_ID}>\n` +
+            `🇷🇺 Россия: <@${ADMIN_RU_ID}>\n\n` +
+            '📝 **Что писать:**\n' +
+            '• Ваш ник в игре\n' +
+            '• Проблема (не выдали привилегию, не прошла оплата и т.д.)\n' +
+            '• Скриншот оплаты (если есть)';
+        
+        return message.reply(supportText);
+    }
+    
+    // Команда !status
+    if (command === '!status') {
+        const orderId = args[1];
+        if (!orderId) {
+            return message.reply('❌ Укажите номер заказа! Пример: `!status 1740412345678`');
+        }
+        
+        const order = orders.get(orderId);
+        if (!order) {
+            return message.reply('❌ Заказ с таким номером не найден');
+        }
+        
+        const statusText = 
+            `📦 **Заказ #${orderId}**\n\n` +
+            `👤 Покупатель: <@${order.userId}>\n` +
+            `🎮 Ник: ${order.username}\n` +
+            `🏷 Привилегия: ${order.rank}\n` +
+            `🌍 Страна: ${order.country === 'kz' ? '🇰🇿 Казахстан' : '🇷🇺 Россия'}\n` +
+            `💰 Сумма: ${order.amount}\n` +
+            `📊 Статус: ${order.status === 'waiting' ? '⏳ Ожидает оплаты' : '✅ Подтверждён'}`;
+        
+        return message.reply(statusText);
+    }
+    
+    // Команда !buy [ник] [привилегия]
     if (command === '!buy') {
         const username = args[1];
-        if (!username) {
-            return message.reply('❌ Укажи ник! Пример: `!buy PetHT1`');
+        const rankKey = args[2]?.toLowerCase();
+        
+        if (!username || !rankKey) {
+            return message.reply('❌ Укажи ник и привилегию! Пример: `!buy PetHT1 ultra`\n\nСписок привилегий: ultra, supreme, legend, dragon');
+        }
+        
+        const rank = ranks[rankKey];
+        if (!rank) {
+            return message.reply('❌ Неверная привилегия! Доступны: ultra, supreme, legend, dragon');
         }
         
         // Создаём заявку
@@ -58,20 +172,20 @@ client.on('messageCreate', async (message) => {
                 {
                     type: 2,
                     style: 3,
-                    label: '🇰🇿 Казахстан (тенге)',
-                    custom_id: `country_kz_${orderId}`
+                    label: `🇰🇿 Казахстан (${rank.priceKZT}₸)`,
+                    custom_id: `country_kz_${orderId}_${rankKey}`
                 },
                 {
                     type: 2,
                     style: 4,
-                    label: '🇷🇺 Россия (рубли)',
-                    custom_id: `country_ru_${orderId}`
+                    label: `🇷🇺 Россия (${rank.priceRUB}₽)`,
+                    custom_id: `country_ru_${orderId}_${rankKey}`
                 }
             ]
         };
         
         await message.reply({
-            content: `🛒 **Новая покупка для ника: ${username}**\nВыберите страну для оплаты:`,
+            content: `🛒 **Покупка привилегии ${rank.name}**\n👤 Ник: ${username}\nВыберите страну для оплаты:`,
             components: [row]
         });
     }
@@ -81,23 +195,28 @@ client.on('messageCreate', async (message) => {
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isButton()) return;
     
-    const [action, country, orderId] = interaction.customId.split('_');
+    const [action, country, orderId, rankKey] = interaction.customId.split('_');
     
     // Выбор страны
     if (action === 'country') {
+        const rank = ranks[rankKey];
         const targetAdmin = country === 'kz' ? ADMIN_KZ_ID : ADMIN_RU_ID;
-        const countryName = country === 'kz' ? 'Казахстан (тенге)' : 'Россия (рубли)';
+        const countryName = country === 'kz' ? 'Казахстан' : 'Россия';
+        const amount = country === 'kz' ? rank.priceKZT : rank.priceRUB;
+        const currency = country === 'kz' ? '₸' : '₽';
         const adminMention = `<@${targetAdmin}>`;
         
         // Получаем ник из сообщения
-        const match = interaction.message.content.match(/ник: ([^\n]+)/);
+        const match = interaction.message.content.match(/Ник: ([^\n]+)/);
         const username = match ? match[1] : 'неизвестно';
         
         // Сохраняем заявку
         orders.set(orderId, {
             userId: interaction.user.id,
             username: username,
+            rank: rank.name,
             country: country,
+            amount: `${amount} ${currency}`,
             status: 'waiting'
         });
         
@@ -122,18 +241,26 @@ client.on('interactionCreate', async (interaction) => {
         
         // Отправляем уведомление админу
         await interaction.update({
-            content: `✅ Заявка создана! Администратор ${adminMention} скоро проверит.\nСтрана: ${countryName}`,
+            content: `✅ Заявка создана! Администратор ${adminMention} скоро проверит.\n` +
+                    `🌍 Страна: ${countryName}\n` +
+                    `💰 Сумма: ${amount} ${currency}\n` +
+                    `🏷 Привилегия: ${rank.name}`,
             components: []
         });
         
         // Отправляем уведомление в лог-канал
         const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
         await logChannel.send({
-            content: `${adminMention} 🔔 **Новая заявка на оплату!**\n` +
-                    `👤 Покупатель: <@${interaction.user.id}>\n` +
-                    `🎮 Ник в игре: ${username}\n` +
-                    `🌍 Страна: ${countryName}\n` +
-                    `🆔 Заказ: ${orderId}`,
+            content: `${adminMention} 🔔 **НОВАЯ ЗАЯВКА НА ОПЛАТУ!**\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `👤 **Покупатель:** <@${interaction.user.id}>\n` +
+                    `🎮 **Ник в игре:** ${username}\n` +
+                    `🏷 **Привилегия:** ${rank.name}\n` +
+                    `🌍 **Страна:** ${countryName}\n` +
+                    `💰 **Сумма:** ${amount} ${currency}\n` +
+                    `🆔 **Номер заказа:** ${orderId}\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `✅ После подтверждения оплаты нажмите кнопку ниже`,
             components: [confirmRow]
         });
     }
@@ -151,19 +278,29 @@ client.on('interactionCreate', async (interaction) => {
         // Отправляем команду в канал DiscordSRV
         try {
             const giveChannel = await client.channels.fetch(DISCORDSRV_CHANNEL_ID);
-            await giveChannel.send(`!sudo ${order.username} загрузчик`);
+            await giveChannel.send(`!sudo ${order.username} ${order.rank.toLowerCase()}`);
             
             order.status = 'approved';
             
             await interaction.update({
-                content: `✅ Оплата подтверждена! Привилегия выдана игроку ${order.username}`,
+                content: `✅ **ОПЛАТА ПОДТВЕРЖДЕНА!**\n` +
+                        `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                        `🎮 Игроку ${order.username} выдана привилегия ${order.rank}`,
                 components: []
             });
             
-            // Уведомляем покупателя (если нужно)
+            // Уведомляем покупателя
             const buyer = await client.users.fetch(order.userId);
             if (buyer) {
-                await buyer.send(`✅ Ваша оплата подтверждена! Привилегия выдана на ник **${order.username}**`);
+                await buyer.send(
+                    `✅ **Ваша оплата подтверждена!**\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `🎮 **Ник:** ${order.username}\n` +
+                    `🏷 **Привилегия:** ${order.rank}\n` +
+                    `💰 **Сумма:** ${order.amount}\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `Спасибо за покупку на FollenSMP!`
+                );
             }
             
         } catch (error) {
@@ -188,14 +325,17 @@ client.on('interactionCreate', async (interaction) => {
         orders.delete(orderId);
         
         await interaction.update({
-            content: '❌ Заявка отменена',
+            content: '❌ **Заявка отменена**',
             components: []
         });
         
         // Уведомляем покупателя
         const buyer = await client.users.fetch(order.userId);
         if (buyer) {
-            await buyer.send(`❌ Ваша заявка на покупку была отменена. Свяжитесь с администратором для уточнения.`);
+            await buyer.send(
+                `❌ **Ваша заявка на покупку была отменена.**\n` +
+                `Свяжитесь с администратором для уточнения деталей.`
+            );
         }
     }
 });
