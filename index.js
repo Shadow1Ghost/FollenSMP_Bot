@@ -12,7 +12,7 @@ const client = new Client({
 // ========== НАСТРОЙКИ (переменные окружения) ==========
 const TOKEN = process.env.TOKEN;
 const ADMIN_KZ_ID = process.env.ADMIN_KZ_ID;      // Твой Discord ID
-const ADMIN_RU_ID = process.env.ADMIN_RU_ID;      // ID друга в России (оставим для совместимости)
+const ADMIN_RU_ID = process.env.ADMIN_RU_ID;      // ID друга в России
 const CHANNEL_ID = process.env.CHANNEL_ID;        // Канал для команд !buy
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID; // Канал для уведомлений
 const DISCORDSRV_CHANNEL_ID = process.env.DISCORDSRV_CHANNEL_ID; // Канал DiscordSRV
@@ -35,7 +35,11 @@ function loadOrders() {
     try {
         if (fs.existsSync(ORDERS_FILE)) {
             const data = fs.readFileSync(ORDERS_FILE, 'utf8');
-            return new Map(JSON.parse(data));
+            const parsed = JSON.parse(data);
+            // Проверяем, что parsed - это массив, и конвертируем в Map
+            if (Array.isArray(parsed)) {
+                return new Map(parsed);
+            }
         }
     } catch (error) {
         console.error('Ошибка загрузки заказов:', error);
@@ -225,16 +229,104 @@ client.on('messageCreate', async (message) => {
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isButton()) return;
     
-    const [action, country, orderId, rankKey] = interaction.customId.split('_');
+    const customId = interaction.customId;
+    const parts = customId.split('_');
     
-    // Выбор страны
-    if (action === 'country') {
+    // Подтверждение оплаты (кнопка с форматом confirm_123456789)
+    if (customId.startsWith('confirm_')) {
+        const orderId = customId.replace('confirm_', '');
+        
+        const order = orders.get(orderId);
+        if (!order) {
+            return interaction.reply({ 
+                content: '❌ Заказ не найден или уже обработан', 
+                ephemeral: true 
+            });
+        }
+        
+        // Отправляем команду в канал DiscordSRV
+        try {
+            const giveChannel = await client.channels.fetch(DISCORDSRV_CHANNEL_ID);
+            await giveChannel.send(`!sudo ${order.username} ${order.rank.toLowerCase()}`);
+            
+            order.status = 'approved';
+            orders.set(orderId, order);
+            saveOrders(orders);
+            
+            await interaction.update({
+                content: `✅ **ОПЛАТА ПОДТВЕРЖДЕНА!**\n` +
+                        `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                        `🎮 Игроку ${order.username} выдана привилегия ${order.rank}`,
+                components: []
+            });
+            
+            // Уведомляем покупателя
+            const buyer = await client.users.fetch(order.userId);
+            if (buyer) {
+                await buyer.send(
+                    `✅ **Ваша оплата подтверждена!**\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `🎮 **Ник:** ${order.username}\n` +
+                    `🏷 **Привилегия:** ${order.rank}\n` +
+                    `💰 **Сумма:** ${order.amount}\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `Спасибо за покупку на FollenSMP!`
+                );
+            }
+            
+        } catch (error) {
+            console.error('Ошибка при выдаче:', error);
+            await interaction.reply({
+                content: '❌ Ошибка при выдаче привилегии. Проверьте логи.',
+                ephemeral: true
+            });
+        }
+        return;
+    }
+    
+    // Отмена заявки
+    if (customId.startsWith('cancel_')) {
+        const orderId = customId.replace('cancel_', '');
+        
+        const order = orders.get(orderId);
+        if (!order) {
+            return interaction.reply({ 
+                content: '❌ Заказ не найден', 
+                ephemeral: true 
+            });
+        }
+        
+        orders.delete(orderId);
+        saveOrders(orders);
+        
+        await interaction.update({
+            content: '❌ **Заявка отменена**',
+            components: []
+        });
+        
+        // Уведомляем покупателя
+        const buyer = await client.users.fetch(order.userId);
+        if (buyer) {
+            await buyer.send(
+                `❌ **Ваша заявка на покупку была отменена.**\n` +
+                `Свяжитесь с администратором для уточнения деталей.`
+            );
+        }
+        return;
+    }
+    
+    // Выбор страны (остаётся как есть)
+    if (parts[0] === 'country') {
+        const country = parts[1];
+        const orderId = parts[2];
+        const rankKey = parts[3];
+        
         const rank = ranks[rankKey];
         const countryName = country === 'kz' ? 'Казахстан' : 'Россия';
         const amount = country === 'kz' ? rank.priceKZT : rank.priceRUB;
         const currency = country === 'kz' ? '₸' : '₽';
         
-        // 👇 Определяем, как показывать админа
+        // Определяем, как показывать админа
         let adminDisplay;
         let logAdminDisplay;
         
@@ -242,7 +334,7 @@ client.on('interactionCreate', async (interaction) => {
             adminDisplay = `<@${ADMIN_KZ_ID}>`;
             logAdminDisplay = `<@${ADMIN_KZ_ID}>`;
         } else {
-            adminDisplay = '**@Motok_lu** (Telegram)';  // Для России показываем Telegram
+            adminDisplay = '**@Motok_lu** (Telegram)';
             logAdminDisplay = '@Motok_lu (Telegram)';
         }
         
@@ -306,83 +398,6 @@ client.on('interactionCreate', async (interaction) => {
                     `✅ После подтверждения оплаты нажмите кнопку ниже`,
             components: [confirmRow]
         });
-    }
-    
-    // Подтверждение оплаты
-    if (action === 'confirm') {
-        const order = orders.get(orderId);
-        if (!order) {
-            return interaction.reply({ 
-                content: '❌ Заказ не найден или уже обработан', 
-                ephemeral: true 
-            });
-        }
-        
-        // Отправляем команду в канал DiscordSRV
-        try {
-            const giveChannel = await client.channels.fetch(DISCORDSRV_CHANNEL_ID);
-            await giveChannel.send(`!sudo ${order.username} ${order.rank.toLowerCase()}`);
-            
-            order.status = 'approved';
-            orders.set(orderId, order);
-            saveOrders(orders); // Сохраняем изменения
-            
-            await interaction.update({
-                content: `✅ **ОПЛАТА ПОДТВЕРЖДЕНА!**\n` +
-                        `━━━━━━━━━━━━━━━━━━━━━━━\n` +
-                        `🎮 Игроку ${order.username} выдана привилегия ${order.rank}`,
-                components: []
-            });
-            
-            // Уведомляем покупателя
-            const buyer = await client.users.fetch(order.userId);
-            if (buyer) {
-                await buyer.send(
-                    `✅ **Ваша оплата подтверждена!**\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
-                    `🎮 **Ник:** ${order.username}\n` +
-                    `🏷 **Привилегия:** ${order.rank}\n` +
-                    `💰 **Сумма:** ${order.amount}\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
-                    `Спасибо за покупку на FollenSMP!`
-                );
-            }
-            
-        } catch (error) {
-            console.error('Ошибка при выдаче:', error);
-            await interaction.reply({
-                content: '❌ Ошибка при выдаче привилегии. Проверьте логи.',
-                ephemeral: true
-            });
-        }
-    }
-    
-    // Отмена заявки
-    if (action === 'cancel') {
-        const order = orders.get(orderId);
-        if (!order) {
-            return interaction.reply({ 
-                content: '❌ Заказ не найден', 
-                ephemeral: true 
-            });
-        }
-        
-        orders.delete(orderId);
-        saveOrders(orders); // Сохраняем изменения
-        
-        await interaction.update({
-            content: '❌ **Заявка отменена**',
-            components: []
-        });
-        
-        // Уведомляем покупателя
-        const buyer = await client.users.fetch(order.userId);
-        if (buyer) {
-            await buyer.send(
-                `❌ **Ваша заявка на покупку была отменена.**\n` +
-                `Свяжитесь с администратором для уточнения деталей.`
-            );
-        }
     }
 });
 
