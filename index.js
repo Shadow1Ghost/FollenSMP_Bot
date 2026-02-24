@@ -1,4 +1,17 @@
 const { Client, GatewayIntentBits } = require('discord.js');
+const http = require('http'); // <-- Добавь этот импорт
+
+// --- Простой HTTP сервер для Render ---
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end(‘FollenSMP Bot is running!’);
+});
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`🌐 HTTP пинг-сервер запущен на порту ${PORT}`);
+});
+
+
 const client = new Client({ 
     intents: [
         GatewayIntentBits.Guilds,
