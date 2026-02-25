@@ -158,8 +158,8 @@ client.on('messageCreate', async (message) => {
         priceText += '📝 Для покупки: `!buy [ник] [название]`\n';
         priceText += 'Пример: `!buy PetHT1 ultra`\n\n';
         priceText += '🎁 **Донат-кейс:**\n';
-        priceText += '   🇷🇺 200 руб.\n';
-        priceText += '   🇰🇿 1000 тенге\n';
+        priceText += '   🇷🇺 15 руб.\n';
+        priceText += '   🇰🇿 100 тенге\n';
         priceText += '📝 Для покупки кейса: `!buycase [ник]`';
         
         return message.reply(priceText);
@@ -271,13 +271,13 @@ client.on('messageCreate', async (message) => {
                 {
                     type: 2,
                     style: 3,
-                    label: '🇰🇿 Казахстан (1000₸)',
+                    label: '🇰🇿 Казахстан (100₸)',
                     custom_id: `case_kz_${orderId}`
                 },
                 {
                     type: 2,
                     style: 4,
-                    label: '🇷🇺 Россия (200₽)',
+                    label: '🇷🇺 Россия (15₽)',
                     custom_id: `case_ru_${orderId}`
                 }
             ]
@@ -316,7 +316,7 @@ client.on('interactionCreate', async (interaction) => {
             let command;
             if (order.type === 'case') {
                 // Это донат-кейс
-                command = `crate key ultra ${order.username} 1`; // замени ultra на свой кейс
+                command = `crate key donate ${order.username} 1`;
             } else {
                 // Это привилегия (из !buy)
                 const rankKey = Object.keys(ranks).find(key => ranks[key].name === order.rank);
@@ -492,7 +492,7 @@ client.on('interactionCreate', async (interaction) => {
         const orderId = parts[2];
         
         const countryName = country === 'kz' ? 'Казахстан' : 'Россия';
-        const amount = country === 'kz' ? 1000 : 200;
+        const amount = country === 'kz' ? 100 : 15;
         const currency = country === 'kz' ? '₸' : '₽';
         
         let paymentDetails;
