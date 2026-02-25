@@ -137,6 +137,8 @@ client.on('messageCreate', async (message) => {
             '`!price` - показать цены на привилегии\n' +
             '`!buy [ник] [привилегия]` - купить привилегию\n' +
             '   Пример: `!buy PetHT1 ultra`\n' +
+            '`!buycase [ник]` - купить донат-кейс\n' +
+            '   Пример: `!buycase PetHT1`\n' +
             '`!admins` - контакты администраторов\n' +
             '`!support` - связаться с поддержкой\n' +
             '`!status [номер заказа]` - проверить статус';
@@ -154,7 +156,11 @@ client.on('messageCreate', async (message) => {
         }
         
         priceText += '📝 Для покупки: `!buy [ник] [название]`\n';
-        priceText += 'Пример: `!buy PetHT1 ultra`';
+        priceText += 'Пример: `!buy PetHT1 ultra`\n\n';
+        priceText += '🎁 **Донат-кейс:**\n';
+        priceText += '   🇷🇺 200 руб.\n';
+        priceText += '   🇰🇿 1000 тенге\n';
+        priceText += '📝 Для покупки кейса: `!buycase [ник]`';
         
         return message.reply(priceText);
     }
@@ -201,7 +207,7 @@ client.on('messageCreate', async (message) => {
             `📦 **Заказ #${orderId}**\n\n` +
             `👤 Покупатель: <@${order.userId}>\n` +
             `🎮 Ник: ${order.username}\n` +
-            `🏷 Привилегия: ${order.rank}\n` +
+            (order.rank !== 'Case' ? `🏷 Привилегия: ${order.rank}\n` : `🎁 Товар: Донат-кейс\n`) +
             `🌍 Страна: ${order.country === 'kz' ? '🇰🇿 Казахстан' : '🇷🇺 Россия'}\n` +
             `💰 Сумма: ${order.amount}\n` +
             `📊 Статус: ${order.status === 'waiting' ? '⏳ Ожидает оплаты' : '✅ Подтверждён'}`;
@@ -209,6 +215,7 @@ client.on('messageCreate', async (message) => {
         return message.reply(statusText);
     }
     
+    // Команда !buy - покупка привилегии
     if (command === '!buy') {
         const username = args[1];
         const rankKey = args[2]?.toLowerCase();
@@ -247,6 +254,40 @@ client.on('messageCreate', async (message) => {
             components: [row]
         });
     }
+    
+    // Команда !buycase - покупка донат-кейса
+    if (command === '!buycase') {
+        const username = args[1];
+        
+        if (!username) {
+            return message.reply('❌ Укажи ник! Пример: `!buycase PetHT1`');
+        }
+        
+        const orderId = Date.now().toString();
+        
+        const row = {
+            type: 1,
+            components: [
+                {
+                    type: 2,
+                    style: 3,
+                    label: '🇰🇿 Казахстан (1000₸)',
+                    custom_id: `case_kz_${orderId}`
+                },
+                {
+                    type: 2,
+                    style: 4,
+                    label: '🇷🇺 Россия (200₽)',
+                    custom_id: `case_ru_${orderId}`
+                }
+            ]
+        };
+        
+        await message.reply({
+            content: `🛒 **Покупка донат-кейса**\n👤 Ник: ${username}\nВыберите страну для оплаты:`,
+            components: [row]
+        });
+    }
 });
 
 // Обработка кнопок
@@ -269,77 +310,55 @@ client.on('interactionCreate', async (interaction) => {
         }
         
         try {
-            // Получаем канал
             const giveChannel = await client.channels.fetch(DISCORDSRV_CHANNEL_ID);
             
-            // Формируем команду
-            const rankKey = Object.keys(ranks).find(key => ranks[key].name === order.rank);
-            const voucherName = rankKey ? ranks[rankKey].voucher : order.rank.toLowerCase() + '_rank';
-            const command = `iv give ${order.username} ${voucherName} 1`;
-            
-            // ✅ ИСПОЛЬЗУЕМ ВЕБХУК ВМЕСТО ОБЫЧНОГО СООБЩЕНИЯ
-            try {
-                // Создаём вебхук
-                const webhook = await giveChannel.createWebhook({
-                    name: 'Console Command',
-                    avatar: client.user.displayAvatarURL()
-                });
-                
-                // Отправляем команду через вебхук
-                await webhook.send(command);
-                
-                // Удаляем вебхук (чтобы не засорять)
-                await webhook.delete();
-                
-                console.log(`✅ Команда отправлена через вебхук: ${command}`);
-            } catch (webhookError) {
-                console.log('❌ Ошибка при создании вебхука, пробую обычное сообщение:', webhookError);
-                // Если вебхук не сработал, пробуем обычное сообщение
-                await giveChannel.send(command);
-                console.log(`✅ Команда отправлена обычным сообщением: ${command}`);
+            // Определяем команду в зависимости от типа заказа
+            let command;
+            if (order.type === 'case') {
+                // Это донат-кейс
+                command = `crate key ultra ${order.username} 1`; // замени ultra на свой кейс
+            } else {
+                // Это привилегия (из !buy)
+                const rankKey = Object.keys(ranks).find(key => ranks[key].name === order.rank);
+                const voucherName = rankKey ? ranks[rankKey].voucher : order.rank.toLowerCase() + '_rank';
+                command = `iv give ${order.username} ${voucherName} 1`;
             }
+            
+            // Отправляем через вебхук
+            const webhook = await giveChannel.createWebhook({
+                name: order.type === 'case' ? 'DonateCase' : 'Voucher',
+                avatar: client.user.displayAvatarURL()
+            });
+            await webhook.send(command);
+            await webhook.delete();
+            
+            console.log(`✅ Команда отправлена: ${command}`);
             
             order.status = 'approved';
             orders.set(orderId, order);
             saveOrders(orders);
             
+            // Разное сообщение для кейсов и привилегий
+            const successMessage = order.type === 'case' 
+                ? `✅ **ОПЛАТА ПОДТВЕРЖДЕНА!**\n🎮 Игроку ${order.username} выдан ключ от кейса`
+                : `✅ **ОПЛАТА ПОДТВЕРЖДЕНА!**\n🎮 Игроку ${order.username} выдан ваучер ${order.rank}`;
+            
             await interaction.update({
-                content: `✅ **ОПЛАТА ПОДТВЕРЖДЕНА!**\n` +
-                        `━━━━━━━━━━━━━━━━━━━━━━━\n` +
-                        `🎮 Игроку ${order.username} выдан ваучер ${order.rank}`,
+                content: successMessage,
                 components: []
             });
             
             const buyer = await client.users.fetch(order.userId);
             if (buyer) {
-                await buyer.send(
-                    `✅ **Спасибо за покупку на FollenSMP!**\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
-                    `🎮 **Ник:** ${order.username}\n` +
-                    `🏷 **Привилегия:** ${order.rank}\n` +
-                    `💰 **Сумма:** ${order.amount}\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
-                    `✨ Вам выдан ваучер в игре! Нажмите ПКМ по нему, чтобы активировать статус.\n` +
-                    `Если возникнут вопросы — пишите администраторам.`
-                );
+                const buyerMessage = order.type === 'case'
+                    ? `✅ **Спасибо за покупку донат-кейса!**\n🎮 Вам выдан ключ в игре.`
+                    : `✅ **Спасибо за покупку привилегии!**\n🎮 Вам выдан ваучер ${order.rank} в игре.`;
+                
+                await buyer.send(buyerMessage);
             }
             
         } catch (error) {
-            console.log('❌ ПОДРОБНАЯ ОШИБКА:');
-            console.log('Имя ошибки:', error.name);
-            console.log('Сообщение:', error.message);
-            console.log('Код ошибки:', error.code);
-            console.log('Статус:', error.status);
-            console.log('URL:', error.url);
-            
-            try {
-                await interaction.reply({
-                    content: '❌ Ошибка при выдаче привилегии. Проверьте логи Render.',
-                    ephemeral: true
-                });
-            } catch (replyError) {
-                console.log('❌ Не удалось отправить ответ:', replyError);
-            }
+            console.error('❌ Ошибка при выдаче:', error);
         }
         return;
     }
@@ -374,7 +393,7 @@ client.on('interactionCreate', async (interaction) => {
         return;
     }
     
-    // ===== ВЫБОР СТРАНЫ =====
+    // ===== ВЫБОР СТРАНЫ ДЛЯ ПРИВИЛЕГИИ =====
     if (parts[0] === 'country') {
         const country = parts[1];
         const orderId = parts[2];
@@ -417,7 +436,8 @@ client.on('interactionCreate', async (interaction) => {
             rank: rank.name,
             country: country,
             amount: `${amount} ${currency}`,
-            status: 'waiting'
+            status: 'waiting',
+            type: 'rank'
         });
         
         saveOrders(orders);
@@ -452,11 +472,100 @@ client.on('interactionCreate', async (interaction) => {
         
         const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
         await logChannel.send({
-            content: `${logAdminDisplay} 🔔 **НОВАЯ ЗАЯВКА НА ОПЛАТУ!**\n` +
+            content: `${logAdminDisplay} 🔔 **НОВАЯ ЗАЯВКА НА ПРИВИЛЕГИЮ!**\n` +
                     `━━━━━━━━━━━━━━━━━━━━━━━\n` +
                     `👤 **Покупатель:** <@${interaction.user.id}>\n` +
                     `🎮 **Ник в игре:** ${username}\n` +
                     `🏷 **Привилегия:** ${rank.name}\n` +
+                    `🌍 **Страна:** ${countryName}\n` +
+                    `💰 **Сумма:** ${amount} ${currency}\n` +
+                    `🆔 **Номер заказа:** ${orderId}\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `✅ После подтверждения оплаты нажмите кнопку ниже`,
+            components: [confirmRow]
+        });
+    }
+    
+    // ===== ПОКУПКА ДОНАТ-КЕЙСА =====
+    if (parts[0] === 'case') {
+        const country = parts[1];
+        const orderId = parts[2];
+        
+        const countryName = country === 'kz' ? 'Казахстан' : 'Россия';
+        const amount = country === 'kz' ? 1000 : 200;
+        const currency = country === 'kz' ? '₸' : '₽';
+        
+        let paymentDetails;
+        if (country === 'kz') {
+            paymentDetails = 
+                '💳 **Kaspi:** `7 707 582 1743`\n' +
+                '💳 **Halyk:** `4003 0351 1953 1792`\n' +
+                '👤 Получатель: Ерназар Дінмұхамед';
+        } else {
+            paymentDetails = 
+                '💳 **Карта РФ:** `...` (свяжитесь с @Motok_lu)\n' +
+                'Либо уточните реквизиты у администратора.';
+        }
+        
+        let adminDisplay;
+        let logAdminDisplay;
+        
+        if (country === 'kz') {
+            adminDisplay = `<@${ADMIN_KZ_ID}>`;
+            logAdminDisplay = `<@${ADMIN_KZ_ID}>`;
+        } else {
+            adminDisplay = '**@Motok_lu** (Telegram)';
+            logAdminDisplay = '@Motok_lu (Telegram)';
+        }
+        
+        const match = interaction.message.content.match(/Ник: ([^\n]+)/);
+        const username = match ? match[1] : 'неизвестно';
+        
+        orders.set(orderId, {
+            userId: interaction.user.id,
+            username: username,
+            rank: 'Case',
+            country: country,
+            amount: `${amount} ${currency}`,
+            status: 'waiting',
+            type: 'case'
+        });
+        
+        saveOrders(orders);
+        
+        const confirmRow = {
+            type: 1,
+            components: [
+                {
+                    type: 2,
+                    style: 3,
+                    label: '✅ Подтвердить оплату',
+                    custom_id: `confirm_${orderId}`
+                },
+                {
+                    type: 2,
+                    style: 4,
+                    label: '❌ Отменить',
+                    custom_id: `cancel_${orderId}`
+                }
+            ]
+        };
+        
+        await interaction.update({
+            content: `✅ Заявка на кейс создана!\n\n` +
+                    `💰 **Сумма:** ${amount} ${currency}\n` +
+                    `🌍 **Страна:** ${countryName}\n\n` +
+                    `${paymentDetails}\n\n` +
+                    `📩 После перевода администратор подтвердит оплату и выдаст ключ.`,
+            components: []
+        });
+        
+        const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
+        await logChannel.send({
+            content: `${logAdminDisplay} 🔔 **НОВАЯ ЗАЯВКА НА ДОНАТ-КЕЙС!**\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `👤 **Покупатель:** <@${interaction.user.id}>\n` +
+                    `🎮 **Ник в игре:** ${username}\n` +
                     `🌍 **Страна:** ${countryName}\n` +
                     `💰 **Сумма:** ${amount} ${currency}\n` +
                     `🆔 **Номер заказа:** ${orderId}\n` +
