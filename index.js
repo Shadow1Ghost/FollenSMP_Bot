@@ -1,6 +1,8 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
+
 const client = new Client({ 
     intents: [
         GatewayIntentBits.Guilds,
@@ -9,8 +11,8 @@ const client = new Client({
         GatewayIntentBits.GuildPresences
     ] 
 });
-const http = require('http');
 
+// HTTP сервер для Render
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Bot is running!');
@@ -23,11 +25,11 @@ server.listen(PORT, '0.0.0.0', () => {
 
 // ========== НАСТРОЙКИ (переменные окружения) ==========
 const TOKEN = process.env.TOKEN;
-const ADMIN_KZ_ID = process.env.ADMIN_KZ_ID;      // Твой Discord ID
-const ADMIN_RU_ID = process.env.ADMIN_RU_ID;      // ID друга в России
-const CHANNEL_ID = process.env.CHANNEL_ID;        // Канал для команд !buy
-const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID; // Канал для уведомлений
-const DISCORDSRV_CHANNEL_ID = process.env.DISCORDSRV_CHANNEL_ID; // Канал DiscordSRV
+const ADMIN_KZ_ID = process.env.ADMIN_KZ_ID;
+const ADMIN_RU_ID = process.env.ADMIN_RU_ID;
+const CHANNEL_ID = process.env.CHANNEL_ID;
+const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID;
+const DISCORDSRV_CHANNEL_ID = process.env.DISCORDSRV_CHANNEL_ID;
 // ====================================================
 
 // Проверка наличия всех переменных
@@ -270,7 +272,7 @@ client.on('interactionCreate', async (interaction) => {
             const giveChannel = await client.channels.fetch(DISCORDSRV_CHANNEL_ID);
             
             const rankKey = Object.keys(ranks).find(key => ranks[key].name === order.rank);
-            const voucherName = rankKey ? ranks[rankKey].voucher : order.rank.toLowerCase();
+            const voucherName = rankKey ? ranks[rankKey].voucher : order.rank.toLowerCase() + '_rank';
             const command = `iv give ${order.username} ${voucherName} 1`;
             
             await giveChannel.send(command);
@@ -302,19 +304,20 @@ client.on('interactionCreate', async (interaction) => {
             }
             
         } catch (error) {
-    console.log('❌ ПОДРОБНАЯ ОШИБКА:');
-    console.log('Имя ошибки:', error.name);
-    console.log('Сообщение:', error.message);
-    console.log('Код ошибки:', error.code);
-    console.log('Статус:', error.status);
-    console.log('URL:', error.url);
-    console.log('Полный объект ошибки:', JSON.stringify(error, null, 2));
-    
-    await interaction.reply({
-        content: '❌ Ошибка при выдаче привилегии. Проверьте логи Render.',
-        ephemeral: true
-    });
-}
+            console.log('❌ ПОДРОБНАЯ ОШИБКА:');
+            console.log('Имя ошибки:', error.name);
+            console.log('Сообщение:', error.message);
+            console.log('Код ошибки:', error.code);
+            console.log('Статус:', error.status);
+            console.log('URL:', error.url);
+            
+            await interaction.reply({
+                content: '❌ Ошибка при выдаче привилегии. Проверьте логи Render.',
+                ephemeral: true
+            });
+        }
+        return;
+    }
     
     // ===== ОТМЕНА ЗАЯВКИ =====
     if (customId.startsWith('cancel_')) {
