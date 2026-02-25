@@ -75,21 +75,21 @@ const ranks = {
         priceRUB: 10,
         priceKZT: 50,
         emoji: '💎',
-        voucher: 'ultra_rank'
+        voucher: 'Ultra_rank'
     },
     'supreme': {
         name: 'SUPREME',
         priceRUB: 30,
         priceKZT: 80,
         emoji: '⚡',
-        voucher: 'supreme_rank'
+        voucher: 'Supreme_rank'
     },
     'legend': {
         name: 'Legend',
         priceRUB: 50,
         priceKZT: 130,
         emoji: '👑',
-        voucher: 'legend_rank'
+        voucher: 'Legend_rank'
     },
     'dragon': {
         name: 'Драгон',
