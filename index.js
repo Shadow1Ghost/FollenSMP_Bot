@@ -302,14 +302,19 @@ client.on('interactionCreate', async (interaction) => {
             }
             
         } catch (error) {
-            console.error('❌ Ошибка при выдаче:', error);
-            await interaction.reply({
-                content: '❌ Ошибка при выдаче привилегии. Проверьте логи.',
-                ephemeral: true
-            });
-        }
-        return;
-    }
+    console.log('❌ ПОДРОБНАЯ ОШИБКА:');
+    console.log('Имя ошибки:', error.name);
+    console.log('Сообщение:', error.message);
+    console.log('Код ошибки:', error.code);
+    console.log('Статус:', error.status);
+    console.log('URL:', error.url);
+    console.log('Полный объект ошибки:', JSON.stringify(error, null, 2));
+    
+    await interaction.reply({
+        content: '❌ Ошибка при выдаче привилегии. Проверьте логи Render.',
+        ephemeral: true
+    });
+}
     
     // ===== ОТМЕНА ЗАЯВКИ =====
     if (customId.startsWith('cancel_')) {
