@@ -326,7 +326,7 @@ client.on('interactionCreate', async (interaction) => {
             
             // Отправляем через вебхук
             const webhook = await giveChannel.createWebhook({
-                name: order.type === 'case' ? 'DonateCase' : 'Voucher',
+                name: 'Server Bot',
                 avatar: client.user.displayAvatarURL()
             });
             await webhook.send(command);
