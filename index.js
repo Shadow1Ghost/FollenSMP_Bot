@@ -269,14 +269,35 @@ client.on('interactionCreate', async (interaction) => {
         }
         
         try {
+            // Получаем канал
             const giveChannel = await client.channels.fetch(DISCORDSRV_CHANNEL_ID);
             
+            // Формируем команду
             const rankKey = Object.keys(ranks).find(key => ranks[key].name === order.rank);
             const voucherName = rankKey ? ranks[rankKey].voucher : order.rank.toLowerCase() + '_rank';
             const command = `iv give ${order.username} ${voucherName} 1`;
             
-            await giveChannel.send(command);
-            console.log(`✅ Команда отправлена: ${command}`);
+            // ✅ ИСПОЛЬЗУЕМ ВЕБХУК ВМЕСТО ОБЫЧНОГО СООБЩЕНИЯ
+            try {
+                // Создаём вебхук
+                const webhook = await giveChannel.createWebhook({
+                    name: 'Console Command',
+                    avatar: client.user.displayAvatarURL()
+                });
+                
+                // Отправляем команду через вебхук
+                await webhook.send(command);
+                
+                // Удаляем вебхук (чтобы не засорять)
+                await webhook.delete();
+                
+                console.log(`✅ Команда отправлена через вебхук: ${command}`);
+            } catch (webhookError) {
+                console.log('❌ Ошибка при создании вебхука, пробую обычное сообщение:', webhookError);
+                // Если вебхук не сработал, пробуем обычное сообщение
+                await giveChannel.send(command);
+                console.log(`✅ Команда отправлена обычным сообщением: ${command}`);
+            }
             
             order.status = 'approved';
             orders.set(orderId, order);
@@ -311,10 +332,14 @@ client.on('interactionCreate', async (interaction) => {
             console.log('Статус:', error.status);
             console.log('URL:', error.url);
             
-            await interaction.reply({
-                content: '❌ Ошибка при выдаче привилегии. Проверьте логи Render.',
-                ephemeral: true
-            });
+            try {
+                await interaction.reply({
+                    content: '❌ Ошибка при выдаче привилегии. Проверьте логи Render.',
+                    ephemeral: true
+                });
+            } catch (replyError) {
+                console.log('❌ Не удалось отправить ответ:', replyError);
+            }
         }
         return;
     }
