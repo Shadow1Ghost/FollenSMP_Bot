@@ -99,6 +99,20 @@ const ranks = {
         priceKZT: 300,
         emoji: '🐉',
         voucher: 'dragon_rank'
+    },
+    'eclipse': {
+        name: 'ECLIPSE',
+        priceRUB: 500,
+        priceKZT: 3000,
+        emoji: '🌑',
+        voucher: 'Eclipse_rank'
+    },
+    'helios': {
+        name: 'HELIOS',
+        priceRUB: 500,
+        priceKZT: 3000,
+        emoji: '☀️',
+        voucher: 'Helios_rank'
     }
 };
 
