@@ -426,7 +426,7 @@ client.on('interactionCreate', async (interaction) => {
                 '👤 Получатель: Ерназар Дінмұхамед';
         } else {
             paymentDetails = 
-                '💳 **Карта РФ:** `...` (свяжитесь с @Motok_lu)\n' +
+                '💳 **Карта РФ:** `...` (свяжитесь с @ghgfda в Телеграмме)\n' +
                 'Либо уточните реквизиты у администратора.';
         }
         
@@ -437,8 +437,8 @@ client.on('interactionCreate', async (interaction) => {
             adminDisplay = `<@${ADMIN_KZ_ID}>`;
             logAdminDisplay = `<@${ADMIN_KZ_ID}>`;
         } else {
-            adminDisplay = '**@Motok_lu** (Telegram)';
-            logAdminDisplay = '@Motok_lu (Telegram)';
+            adminDisplay = '**@ghgfda** (Telegram)';
+            logAdminDisplay = '@ghgfda (Telegram)';
         }
         
         const match = interaction.message.content.match(/Ник: ([^\n]+)/);
